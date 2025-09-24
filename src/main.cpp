@@ -16,7 +16,7 @@ struct Stack_t {
 
 void StackCtor( Stack_t* stk, size_t size );
 void StackPush( Stack_t* stk, int element );
-void StackPop ( Stack_t* stk );
+int StackPop ( Stack_t* stk );
 
 void StackPrint( Stack_t stk );
 void StackStat( Stack_t stk );
@@ -52,13 +52,17 @@ void StackPush( Stack_t* stk, int element ) {
     *( stk->ptr + stk->size++ ) = element;
 }
 
-void StackPop( Stack_t* stk ) {
-    *( stk->ptr + --(stk->size) ) = 0;
-    
+int StackPop( Stack_t* stk ) {
+    stk->size--;
+    int value = *( stk->ptr + stk->size );
+    *( stk->ptr + stk->size ) = 0;
+
     if ( stk->size * 4 <= stk->capacity ) {
         stk->capacity /= 2;
         stk->ptr = ( int* ) realloc ( stk->ptr, stk->capacity );
     }
+
+    return value;
 }
 
 void StackPrint( Stack_t stk ) {
@@ -77,4 +81,3 @@ void StackStat( Stack_t stk ) {
             "           capacity - %lu\n\n",
             stk.ptr, stk.size, stk.capacity );
 }
-
