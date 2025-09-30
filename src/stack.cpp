@@ -1,6 +1,6 @@
 #include "stack.h"
 
-long StackCtor( Stack_t* stk, size_t capacity ) {
+void StackCtor( Stack_t* stk, size_t capacity ) {
     stk->ptr      = ( int* ) calloc ( capacity ON_DEBUG( + 2 ), sizeof( int ) );        // canaries
     assert( stk->ptr != NULL );
 
@@ -21,61 +21,61 @@ long StackCtor( Stack_t* stk, size_t capacity ) {
         *( stk->ptr + i ) = poison;
     }
 
-    ON_DEBUG( return StackVerify( stk ); )
-    return ERR_NONE;
+    ON_DEBUG( StackVerify( stk ); )
 }
 
-long StackDtor( Stack_t* stk ) {            // TODO: change StackDtor
-    free( --stk->ptr );
+void StackDtor( Stack_t* stk ) {            // TODO: change StackDtor
+    ON_DEBUG( stk->ptr--; )
+    free( stk->ptr );
     // free( stk );
-
-    return ERR_NONE;
 }
 
-long StackPush( Stack_t* stk, int element ) {
+void StackPush( Stack_t* stk, int element ) {
     assert( stk != NULL );
 
     ON_DEBUG(
         if ( StackVerify( stk ) != ERR_NONE ) {
-            return stk->varInfo.err_code;
+            return;
         }
     )
 
     if ( stk->size + 1 > stk->capacity ) {
-        stk->capacity *= 2;
-        int* new_ptr = ( int* ) realloc ( stk->ptr, ( stk->capacity ON_DEBUG( + 2 ) ) * sizeof( int ) );
-        assert( new_ptr != NULL );
+        size_t new_capacity = stk->capacity * 2;
 
-        stk->ptr = new_ptr;
+        StackRealloc( stk, new_capacity );
     }
 
     *( stk->ptr + stk->size ) = element;
     stk->size++;
 
     ON_DEBUG( StackVerify( stk ); )
-    return ERR_NONE;
 }
 
-long StackPop( Stack_t* stk ) {
+int StackPop( Stack_t* stk ) {
     ON_DEBUG(
         if ( StackVerify( stk ) != ERR_NONE ) {
-            return stk->varInfo.err_code;
+            return 0;
         }
     )
 
     stk->size--;
+    int value = *( stk->ptr + stk->size );
     *( stk->ptr + stk->size ) = poison;
 
     if ( stk->size * 4 <= stk->capacity ) {
         // stk->capacity /= 2;
         // stk->ptr = ( int* ) realloc ( stk->ptr, stk->capacity * sizeof( int ) );
         // assert( stk->ptr != NULL );
-
         StackRealloc( stk, stk->capacity / 2 );
     }
 
-    ON_DEBUG( return StackVerify( stk ); )
-    return ERR_NONE;
+    ON_DEBUG(
+        if ( StackVerify( stk ) != ERR_NONE ) {
+            return 0;
+        }
+    )
+
+    return value;
 }
 
 #ifdef _DEBUG
@@ -95,6 +95,14 @@ long StackVerify( Stack_t* stk ) {
     if ( stk->capacity < stk->size ) {
         stk->varInfo.err_code += ERR_SIZE_OVER_CAPACITY;
     }
+    else {
+        for ( size_t i = 0; i < stk->size; i++ ) {
+            if ( *( stk->ptr + i ) == poison ) {
+                stk->varInfo.err_code += ERR_POISON_IN_FILLED_CELLS;
+                break;
+            }
+        }
+    }
 
     if ( stk->capacity > 1000000 ) {
         stk->varInfo.err_code += ERR_LARGE_CAPACITY;
@@ -113,28 +121,32 @@ long StackVerify( Stack_t* stk ) {
 
 void ErrorProcessing( long err_code ) {             // TODO: add more errors
     if ( err_code & ERR_BAD_PTR_STRUCT ) {
-        fprintf( stderr, "    ERROR: INVALID pointer to the structure with parameters  \n" );
+        fprintf( stderr, "\tERROR: INVALID pointer to the structure with parameters  \n" );
         return;
     }
 
     if ( err_code & ERR_BAD_PTR_DATA ) {
-        fprintf( stderr, "    ERROR: INVALID pointer to the stack \n" );
+        fprintf( stderr, "\tERROR: INVALID pointer to the stack \n" );
     }
 
     if ( err_code & ERR_CORRUPTED_CANARY ) {
-        fprintf( stderr, "    ERROR: Corrupted canaries in the stack \n" );
+        fprintf( stderr, "\tERROR: Corrupted canaries in the stack \n" );
     }
 
     if ( err_code & ERR_SIZE_OVER_CAPACITY ) {
-        fprintf( stderr, "    ERROR: Size over capacity \n" );
-    }
-
-    if ( err_code & ERR_LARGE_CAPACITY ) {
-        fprintf( stderr, "    WARNING: Too big capacity \n" );
+        fprintf( stderr, "\tERROR: Size over capacity \n" );
     }
 
     if ( err_code & ERR_CORRUPTED_CAPACITY ) {
-        fprintf( stderr, "    ERROR: Corrupted capacity \n" );
+        fprintf( stderr, "\tERROR: Corrupted capacity \n" );
+    }
+
+    if ( err_code & ERR_POISON_IN_FILLED_CELLS ) {
+        fprintf( stderr, "\tERROR: Poison in filled cells \n" );
+    }
+
+    if ( err_code & ERR_LARGE_CAPACITY ) {
+        fprintf( stderr, "\tWARNING: Too big capacity \n" );
     }
 }
 
@@ -203,7 +215,7 @@ int* StackRealloc( Stack_t* stk, size_t capacity ) {
            stk->canaries_ptr[0]   = stk->ptr;
         *( stk->canaries_ptr[0] ) = canary;
 
-           stk->canaries_ptr[1]   = stk->ptr + stk->capacity + 1;
+           stk->canaries_ptr[1]   = stk->ptr + stk->capacity;
         *( stk->canaries_ptr[1] ) = canary;
 
         stk->ptr++;
