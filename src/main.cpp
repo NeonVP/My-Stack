@@ -23,8 +23,9 @@ int main() {        // TODO: typedef ( если успею )
     CHECK_FOR_ERR( stk1 )
 
     /* ---- Check StackVerify ---- */
-    // ON_DEBUG( stk1.size = 10000; )
-    // ON_CANARY( *( stk1.ptr - 1 ) = 0xcafe; )
+    ON_DEBUG( stk1.size = 10000; )
+    ON_DEBUG( stk1.capacity = 0; )
+    ON_CANARY( *( stk1.data - 1 ) = 0xcafe; )
 
     StackPop ( &stk1 );
     CHECK_FOR_ERR( stk1 )

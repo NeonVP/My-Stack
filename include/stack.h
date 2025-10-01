@@ -6,7 +6,11 @@
 #include <assert.h>
 #include <string.h>
 
+#include "colors.h"
+
 typedef int StackData_t;
+
+#define PASS
 
 #ifdef _CANARY
 const int canary = 0xbabe;
@@ -18,34 +22,22 @@ const int canary = 0xbabe;
 #ifdef _DEBUG
 #define ON_DEBUG(...) __VA_ARGS__
 #define CHECK_FOR_ERR( stk ) if ( IS_CRITICAL_ERROR( stk.varInfo.err_code ) ) { StackDtor( &stk ); return 1; } else { stk.varInfo.err_code = ERR_NONE; }
-#ifdef _CANARY
 #define INIT( stk ) \
-    canary, 0, 0, 0, { ERR_NONE, #stk, __func__, __LINE__, __FILE__ }, canary
-#else
-#define INIT( stk ) \
-    0, 0, 0, { ERR_NONE, #stk, __func__, __LINE__, __FILE__ }
-#endif //_CANARY
+    ON_CANARY( canary, ) 0, 0, 0, { ERR_NONE, #stk, __func__, __LINE__, __FILE__ } ON_CANARY( , canary )
 #define IS_CRITICAL_ERROR( code ) ( ( code ) & ( ERR_SIZE_OVER_CAPACITY | ERR_BAD_PTR_DATA | ERR_BAD_PTR_STRUCT | ERR_POISON_IN_FILLED_CELLS ) )
-#define DEBUG_IN_FUNC(...)                  \
-    if ( StackVerify( stk ) != ERR_NONE ) { \
-        return;                           \
-    }                                       \
-    __VA_ARGS__                             \
-                                            \
+#define DEBUG_IN_FUNC(...)                             \
+    if ( StackVerify( stk ) != ERR_NONE ) return;      \
+    __VA_ARGS__                                        \
    StackVerify( stk );
 #else
 #define ON_DEBUG(...)
 #define CHECK_FOR_ERR( code )
-#ifdef _CANARY
 #define INIT( stk ) \
-    canary, 0, 0, 0, canary
-#else
-#define INIT( stk ) \
-    0, 0, 0
-#endif //_CANARY
+    ON_CANARY( canary, ) 0, 0, 0 ON_CANARY( , canary )
 #endif //_DEBUG
 
 const int poison = 777;
+const int large_capacity = 10000000;
 
 enum ErrStack_t {
     ERR_NONE                    = 0,
@@ -55,8 +47,7 @@ enum ErrStack_t {
     ERR_CORRUPTED_CANARY_STRUCT = 1 << 4,
     ERR_SIZE_OVER_CAPACITY      = 1 << 5,
     ERR_LARGE_CAPACITY          = 1 << 6,
-    ERR_CORRUPTED_CAPACITY      = 1 << 7,
-    ERR_POISON_IN_FILLED_CELLS  = 1 << 8
+    ERR_POISON_IN_FILLED_CELLS  = 1 << 7
 };
 
 struct VarInfo {
@@ -68,14 +59,14 @@ struct VarInfo {
 };
 
 struct Stack_t {
-    ON_CANARY( int canary1 = canary; )           // canaries
+    ON_CANARY( int canary1 = canary; )
 
-    StackData_t* ptr        = 0;
-    size_t size     = 0;
-    size_t capacity = 0;
+    StackData_t* data = 0;
+    size_t size       = 0;
+    size_t capacity   = 0;
 
     ON_DEBUG( VarInfo varInfo = {}; )
-    ON_CANARY( int canary2 = canary; )          // canaries
+    ON_CANARY( int canary2 = canary; )
 };
 
 void         StackCtor( Stack_t* stk, size_t size );
@@ -84,10 +75,11 @@ void         StackPush( Stack_t* stk, int element );
 StackData_t  StackPop ( Stack_t* stk );
 
 StackData_t* StackRealloc( Stack_t* stk, size_t capacity );
+void StackToPoison( Stack_t* stk );
 
 long StackVerify( Stack_t* stk );
-long StackDump  ( Stack_t* stk );
-
+void StackDump  ( Stack_t* stk );
 void ErrorProcessing( long err_code );
+void printerr( const char* str );
 
 #endif //STACK_H

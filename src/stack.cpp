@@ -1,60 +1,58 @@
 #include "stack.h"
 
 void StackCtor( Stack_t* stk, size_t capacity ) {
-    stk->ptr      = ( int* ) calloc ( capacity ON_CANARY( + 2 ), sizeof( int ) );        // canaries
-    assert( stk->ptr != NULL );
+    stk->data = ( int* ) calloc ( capacity ON_CANARY( + 2 ), sizeof( StackData_t ) );
+    assert( stk->data != NULL );
 
     stk->capacity = capacity;
     stk->size     = 0;
 
     #ifdef _CANARY               // canaries
-        *( stk->ptr ) = canary;
-        *( stk->ptr + stk->capacity + 1 ) = canary;
+        *( stk->data ) = canary;
+        *( stk->data + stk->capacity + 1 ) = canary;
 
-        stk->ptr++;
+        stk->data++;
     #endif
 
-    for ( size_t i = 0; i < capacity; i++ ) {
-        *( stk->ptr + i ) = poison;
-    }
+    StackToPoison( stk );
 
     ON_DEBUG( StackVerify( stk ); )
 }
 
-void StackDtor( Stack_t* stk ) { 
-    ON_CANARY( stk->ptr--; )
-    free( stk->ptr );
-    // free( stk );
+void StackDtor( Stack_t* stk ) {
+    ON_CANARY( stk->data--; )
+    free( stk->data );
+    stk->data = 0;
+    stk->capacity = 0;
+    stk->size = 0;
 }
 
 void StackPush( Stack_t* stk, int element ) {
-    assert( stk != NULL );
-
     DEBUG_IN_FUNC(
-    if ( stk->size + 1 > stk->capacity ) {
-        size_t new_capacity = stk->capacity * 2;
+        if ( stk->size == stk->capacity ) {
+            stk->capacity *= 2;
 
-        StackRealloc( stk, new_capacity );
-    }
+            StackRealloc( stk, stk->capacity );
+        }
 
-    *( stk->ptr + stk->size ) = element;
-    stk->size++;
+        *( stk->data + stk->size ) = element;
+        stk->size++;
     )
 }
 
-int StackPop( Stack_t* stk ) {
+StackData_t StackPop( Stack_t* stk ) {
     if ( StackVerify( stk ) != ERR_NONE ) {
         return 0;
     }
 
     stk->size--;
-    int value = *( stk->ptr + stk->size );
-    *( stk->ptr + stk->size ) = poison;
+    int value = *( stk->data + stk->size );
+    *( stk->data + stk->size ) = poison;
 
     if ( stk->size * 4 <= stk->capacity ) {
         // stk->capacity /= 2;
-        // stk->ptr = ( int* ) realloc ( stk->ptr, stk->capacity * sizeof( int ) );
-        // assert( stk->ptr != NULL );
+        // stk->data = ( int* ) realloc ( stk->data, stk->capacity * sizeof( int ) );
+        // assert( stk->data != NULL );
         StackRealloc( stk, stk->capacity / 2 );
     }
 
@@ -64,70 +62,69 @@ int StackPop( Stack_t* stk ) {
         }
     )
 
-    ON_DEBUG( StackVerify( stk ); )
     return value;
 }
 
-int* StackRealloc( Stack_t* stk, size_t capacity ) {
+StackData_t* StackRealloc( Stack_t* stk, size_t capacity ) {
     stk->capacity = capacity;
-    ON_CANARY( stk->ptr--; )                      // canaries
+    ON_CANARY( stk->data--; )
 
-    stk->ptr = ( int* ) realloc ( stk->ptr, ( capacity ON_CANARY( + 2 ) ) * sizeof( int ) );         // canaries
-    assert( stk->ptr != NULL );
+    stk->data = ( int* ) realloc ( stk->data, ( capacity ON_CANARY( + 2 ) ) * sizeof( StackData_t ) );
+    assert( stk->data != NULL );
 
 
-    #ifdef _CANARY                                  // canaries
-        *( stk->ptr ) = canary;
-        *( stk->ptr + stk->capacity + 1 ) = canary;
+    #ifdef _CANARY
+        *( stk->data ) = canary;
+        *( stk->data + stk->capacity + 1 ) = canary;
 
-        stk->ptr++;
+        stk->data++;
     #endif
 
-    for ( size_t i = stk->size; i < capacity; i++ ) {
-        *( stk->ptr + i ) = poison;
-    }
+    StackToPoison( stk );
 
-    return stk->ptr;
+    return stk->data;
+}
+
+void StackToPoison( Stack_t* stk ) {
+    for ( size_t i = stk->size; i < stk->capacity; i++ ) {
+        *( stk->data + i ) = poison;
+    }
 }
 
 #ifdef _DEBUG
 long StackVerify( Stack_t* stk ) {
     if ( stk == NULL ) {
-        stk->varInfo.err_code += ERR_BAD_PTR_STRUCT;
+        stk->varInfo.err_code |= ERR_BAD_PTR_STRUCT;
     }
 
-    if ( stk->ptr == NULL ) {
-        stk->varInfo.err_code += ERR_BAD_PTR_DATA;
+    if ( stk->data == NULL ) {
+        stk->varInfo.err_code |= ERR_BAD_PTR_DATA;
     }
 
     #ifdef _CANARY
-    if ( *( stk->ptr - 1 ) != canary || *( stk->ptr + stk->capacity ) != canary ) {
-        stk->varInfo.err_code += ERR_CORRUPTED_CANARY_DATA;
+    if ( *( stk->data - 1 ) != canary || *( stk->data + stk->capacity ) != canary ) {
+        stk->varInfo.err_code |= ERR_CORRUPTED_CANARY_DATA;
     }
 
     if ( stk->canary1 != canary || stk->canary2 != canary ) {
-        stk->varInfo.err_code += ERR_CORRUPTED_CANARY_STRUCT;
+        stk->varInfo.err_code |= ERR_CORRUPTED_CANARY_STRUCT;
     }
     #endif
 
     if ( stk->capacity < stk->size ) {
-        stk->varInfo.err_code += ERR_SIZE_OVER_CAPACITY;
+        stk->varInfo.err_code |= ERR_SIZE_OVER_CAPACITY;
     }
     else {
         for ( size_t i = 0; i < stk->size; i++ ) {
-            if ( *( stk->ptr + i ) == poison ) {
-                stk->varInfo.err_code += ERR_POISON_IN_FILLED_CELLS;
+            if ( *( stk->data + i ) == poison ) {
+                stk->varInfo.err_code |= ERR_POISON_IN_FILLED_CELLS;
                 break;
             }
         }
     }
 
-    if ( stk->capacity > 1000000 ) {
-        stk->varInfo.err_code += ERR_LARGE_CAPACITY;
-    }
-
-    if ( stk->capacity == 0 ) {
-        stk->varInfo.err_code += ERR_CORRUPTED_CAPACITY;
+    if ( stk->capacity > large_capacity ) {
+        stk->varInfo.err_code |= ERR_LARGE_CAPACITY;
     }
 
     if ( stk->varInfo.err_code != ERR_NONE ) {
@@ -137,90 +134,138 @@ long StackVerify( Stack_t* stk ) {
     return stk->varInfo.err_code;
 }
 
-void ErrorProcessing( long err_code ) {             // TODO: add more errors
+void ErrorProcessing( long err_code ) {
     if ( err_code & ERR_BAD_PTR_STRUCT ) {
-        fprintf( stderr, "\tERROR: INVALID pointer to the structure with parameters  \n" );
+        printerr( "\tERROR: INVALID pointer to the structure with parameters  \n" );
         return;
     }
 
     if ( err_code & ERR_BAD_PTR_DATA ) {
-        fprintf( stderr, "\tERROR: INVALID pointer to the stack \n" );
+        printerr( "\tERROR: INVALID pointer to the stack \n" );
     }
 
     if ( err_code & ERR_CORRUPTED_CANARY_DATA ) {
-        fprintf( stderr, "\tERROR: Corrupted canaries in data \n" );
+        printerr( "\tERROR: Corrupted canaries in data \n" );
     }
 
     if ( err_code & ERR_CORRUPTED_CANARY_STRUCT ) {
-        fprintf( stderr, "\tERROR: Corrupted canaries in struct of stack \n" );
+        printerr( "\tERROR: Corrupted canaries in struct of stack \n" );
     }
 
     if ( err_code & ERR_SIZE_OVER_CAPACITY ) {
-        fprintf( stderr, "\tERROR: Size over capacity \n" );
-    }
-
-    if ( err_code & ERR_CORRUPTED_CAPACITY ) {
-        fprintf( stderr, "\tERROR: Corrupted capacity \n" );
+        printerr( "\tERROR: Size over capacity \n" );
     }
 
     if ( err_code & ERR_POISON_IN_FILLED_CELLS ) {
-        fprintf( stderr, "\tERROR: Poison in filled cells \n" );
+        printerr( "\tERROR: Poison in filled cells \n" );
     }
 
     if ( err_code & ERR_LARGE_CAPACITY ) {
-        fprintf( stderr, "\tWARNING: Too big capacity \n" );
+        printerr( "\tWARNING: Too big capacity \n" );
     }
 }
 
-long StackDump( Stack_t* stk ) {
-    fprintf( stderr, "stack<int>[%p]" ON_DEBUG( " --- name: \"%s\" --- FILE: %s --- LINE: %lu --- FUNC: %s" ) "\n",
-                     stk              ON_DEBUG( , stk->varInfo.name, stk->varInfo.file, stk->varInfo.line, stk->varInfo.func ) );
-    ON_DEBUG(  \
-        if (  stk->varInfo.err_code != ERR_NONE ) {
-            fprintf( stderr, "  ERROR CODE %ld:\n", stk->varInfo.err_code );
-            ErrorProcessing( stk->varInfo.err_code );
-        }
-    )
 
-    fprintf( stderr, "  {              \n"
-                     "  capacity  = %lu\n"
-                     "  size      = %lu\n"
-                     "  data[%lu] = %p \n",
-                        stk->capacity,
-                        stk->size,
-                        stk->size, stk->ptr);
-
-    if ( stk->varInfo.err_code & ( ERR_BAD_PTR_DATA ) ) {
-        fprintf( stderr, "\t}\n" );
-        return stk->varInfo.err_code;
+void StackDump( Stack_t* stk ) {
+    if ( stk == NULL ) {
+        printerr( "Error in DUMP: Null Pointer on stack STRUCT\n" );
     }
+    else {
+        fprintf( stderr, COLOR_YELLOW "stack<int>[%p]" ON_DEBUG( " --- name: \"%s\" --- FILE: %s --- LINE: %lu --- FUNC: %s" ) "\n" COLOR_RESET,
+                 stk ON_DEBUG( , stk->varInfo.name, stk->varInfo.file, stk->varInfo.line, stk->varInfo.func ) );
 
-    size_t max_i = stk->capacity;
+        ON_DEBUG(
+            if (  stk->varInfo.err_code != ERR_NONE ) {
+                fprintf( stderr, COLOR_RED "  ERROR CODE %ld:\n" COLOR_RED, stk->varInfo.err_code );
+                ErrorProcessing( stk->varInfo.err_code );
+            }
+        )
 
-    if ( stk->varInfo.err_code & ERR_CORRUPTED_CAPACITY ) {
-        if ( stk->size == 0 ) {
-            fprintf( stderr, "\t}\n" );
-            return stk->varInfo.err_code;
-        }
+        fprintf( stderr, COLOR_CYAN
+                         "  {              \n"
+                         "  capacity = %lu\n"
+                         "  size     = %lu\n"
+                         "  data     = %p \n"
+                         COLOR_RESET,
+                         stk->capacity,
+                         stk->size,
+                         stk->data );
 
-        max_i = stk->size;
-    }
-
-    fprintf( stderr, "\t{\n");
-    ON_CANARY( fprintf( stderr, "\t[can] = %04x\n", *( stk->ptr - 1 ) ); )
-    for ( size_t i = 0; i < max_i; i++ ) {
-        if ( *( stk->ptr + i ) != poison ) {
-            fprintf( stderr, "\t*[%lu] = %d\n", i, *( stk->ptr + i ) );
+        if ( stk->varInfo.err_code & ( ERR_BAD_PTR_DATA | ERR_SIZE_OVER_CAPACITY ) ) {
+            PASS;
         }
         else {
-            fprintf( stderr, "\t [%lu] = %d ( poison ) \n", i, *( stk->ptr + i ) );
-        }
-    }
-    ON_CANARY( fprintf( stderr, "\t[can] = %04x\n", *( stk->ptr + stk->capacity ) ); )
-    fprintf( stderr, "\t}\n"
-            "}\n" );
+            fprintf( stderr, "\t{\n" );
 
-    ON_DEBUG( return stk->varInfo.err_code; )
-    return ERR_NONE;
+            for ( size_t i = 0; i < stk->capacity; i++ ) {
+                if ( *( stk->data + i ) != poison ) {
+                    fprintf( stderr, "\t*[%lu] = %d\n", i, *( stk->data + i ) );
+                }
+                else {
+                    fprintf( stderr, "\t [%lu] = %d ( poison ) \n", i, *( stk->data + i ) );
+                }
+            }
+
+            fprintf( stderr, "\t}\n" );
+        }
+
+        fprintf( stderr, COLOR_CYAN "  }\n" COLOR_RESET );
+    }
 }
+
+void printerr( const char* str ) {
+    fprintf( stderr, COLOR_RED "%s" COLOR_RESET, str );
+}
+
+// long StackDump( Stack_t* stk ) {
+//     fprintf( stderr, "stack<int>[%p]" ON_DEBUG( " --- name: \"%s\" --- FILE: %s --- LINE: %lu --- FUNC: %s" ) "\n",
+//                      stk              ON_DEBUG( , stk->varInfo.name, stk->varInfo.file, stk->varInfo.line, stk->varInfo.func ) );
+//     ON_DEBUG(
+//         if (  stk->varInfo.err_code != ERR_NONE ) {
+//             fprintf( stderr, "  ERROR CODE %ld:\n", stk->varInfo.err_code );
+//             ErrorProcessing( stk->varInfo.err_code );
+//         }
+//     )
+
+//     fprintf( stderr, "  {              \n"
+//                      "  capacity  = %lu\n"
+//                      "  size      = %lu\n"
+//                      "  data[%lu] = %p \n",
+//                         stk->capacity,
+//                         stk->size,
+//                         stk->size, stk->data);
+
+//     if ( stk->varInfo.err_code & ( ERR_BAD_PTR_DATA ) ) {
+//         fprintf( stderr, "\t}\n" );
+//         return stk->varInfo.err_code;
+//     }
+
+//     size_t max_i = stk->capacity;
+
+//     if ( stk->varInfo.err_code & ERR_CORRUPTED_CAPACITY ) {
+//         if ( stk->size == 0 ) {
+//             fprintf( stderr, "\t}\n" );
+//             return stk->varInfo.err_code;
+//         }
+
+//         max_i = stk->size;
+//     }
+
+//     fprintf( stderr, "\t{\n");
+//     ON_CANARY( fprintf( stderr, "\t[can] = %04x\n", *( stk->data - 1 ) ); )
+//     for ( size_t i = 0; i < max_i; i++ ) {
+//         if ( *( stk->data + i ) != poison ) {
+//             fprintf( stderr, "\t*[%lu] = %d\n", i, *( stk->data + i ) );
+//         }
+//         else {
+//             fprintf( stderr, "\t [%lu] = %d ( poison ) \n", i, *( stk->data + i ) );
+//         }
+//     }
+//     ON_CANARY( fprintf( stderr, "\t[can] = %04x\n", *( stk->data + stk->capacity ) ); )
+//     fprintf( stderr, "\t}\n"
+//             "}\n" );
+
+//     ON_DEBUG( return stk->varInfo.err_code; )
+//     return ERR_NONE;
+// }
 #endif

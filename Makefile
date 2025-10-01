@@ -4,7 +4,7 @@ BASE_CPPFLAGS = -I./include -std=c++17 -Wall -Wextra -Weffc++ -Waggressive-loop-
 
 NORMAL_CPPFLAGS = $(BASE_CPPFLAGS) -O2
 
-DEBUG_CPPFLAGS = $(BASE_CPPFLAGS) -ggdb3 -O0 -D_DEBUG -fsanitize=address,alignment,bool,bounds,enum,float-cast-overflow,float-divide-by-zero,integer-divide-by-zero,leak,nonnull-attribute,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,undefined,unreachable,vla-bound,vptr
+DEBUG_CPPFLAGS = $(BASE_CPPFLAGS) -ggdb3 -O0 -D_DEBUG -D_CANARY -fsanitize=address,alignment,bool,bounds,enum,float-cast-overflow,float-divide-by-zero,integer-divide-by-zero,leak,nonnull-attribute,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,undefined,unreachable,vla-bound,vptr
 
 SOURCES := src/main.cpp src/stack.cpp
 NORMAL_OBJECTS := $(SOURCES:src/%.cpp=obj/normal/%.o)
