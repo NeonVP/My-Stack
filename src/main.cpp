@@ -23,8 +23,8 @@ int main() {        // TODO: typedef ( если успею )
     CHECK_FOR_ERR( stk1 )
 
     /* ---- Check StackVerify ---- */
-    stk1.size = 10000;
-    ON_DEBUG( *stk1.canaries_ptr[0] = 1000; )
+    // ON_DEBUG( stk1.size = 10000; )
+    // ON_CANARY( *( stk1.ptr - 1 ) = 0xcafe; )
 
     StackPop ( &stk1 );
     CHECK_FOR_ERR( stk1 )
@@ -33,8 +33,7 @@ int main() {        // TODO: typedef ( если успею )
     StackPop ( &stk1 );
     CHECK_FOR_ERR( stk1 )
     ON_DEBUG( StackDump( &stk1 ); )
-
 
     StackDtor( &stk1 );
-    fprintf( stderr, "%p \n", &stk1 );
+    // fprintf( stderr, "%p \n", &stk1 );
 }
