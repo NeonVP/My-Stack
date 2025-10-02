@@ -11,9 +11,11 @@
 typedef int StackData_t;
 
 #define PASS
+#define printerr(str) fprintf( stderr, COLOR_RED "%s" COLOR_RESET, str );
 
 #ifdef _CANARY
 const int canary = 0xbabe;
+
 #define ON_CANARY(...) __VA_ARGS__
 #else
 #define ON_CANARY(...)
@@ -21,19 +23,27 @@ const int canary = 0xbabe;
 
 #ifdef _DEBUG
 #define ON_DEBUG(...) __VA_ARGS__
+
 #define CHECK_FOR_ERR( stk ) if ( IS_CRITICAL_ERROR( stk.varInfo.err_code ) ) { StackDtor( &stk ); return 1; } else { stk.varInfo.err_code = ERR_NONE; }
+
 #define INIT( stk ) \
     ON_CANARY( canary, ) 0, 0, 0, { ERR_NONE, #stk, __func__, __LINE__, __FILE__ } ON_CANARY( , canary )
-#define IS_CRITICAL_ERROR( code ) ( ( code ) & ( ERR_SIZE_OVER_CAPACITY | ERR_BAD_PTR_DATA | ERR_BAD_PTR_STRUCT | ERR_POISON_IN_FILLED_CELLS ) )
+
+#define IS_CRITICAL_ERROR( code ) ( code & ( ERR_SIZE_OVER_CAPACITY | ERR_BAD_PTR_DATA ) )
+
 #define DEBUG_IN_FUNC(...)                             \
     if ( StackVerify( stk ) != ERR_NONE ) return;      \
     __VA_ARGS__                                        \
    StackVerify( stk );
 #else
 #define ON_DEBUG(...)
+
 #define CHECK_FOR_ERR( code )
+
 #define INIT( stk ) \
     ON_CANARY( canary, ) 0, 0, 0 ON_CANARY( , canary )
+
+#define DEBUG_IN_FUNC(...) __VA_ARGS__
 #endif //_DEBUG
 
 const int poison = 777;
@@ -74,12 +84,11 @@ void         StackDtor( Stack_t* stk );
 void         StackPush( Stack_t* stk, int element );
 StackData_t  StackPop ( Stack_t* stk );
 
-StackData_t* StackRealloc( Stack_t* stk, size_t capacity );
+void StackRealloc( Stack_t* stk, size_t capacity );
 void StackToPoison( Stack_t* stk );
 
 long StackVerify( Stack_t* stk );
 void StackDump  ( Stack_t* stk );
 void ErrorProcessing( long err_code );
-void printerr( const char* str );
 
 #endif //STACK_H

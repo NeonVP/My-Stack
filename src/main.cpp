@@ -5,7 +5,7 @@
 #include "stack.h"
 
 
-int main() {        // TODO: typedef ( если успею )
+int main() {
     Stack_t stk1 = { INIT( stk1 ) };
 
     StackCtor( &stk1, 30 );
@@ -24,7 +24,6 @@ int main() {        // TODO: typedef ( если успею )
 
     /* ---- Check StackVerify ---- */
     ON_DEBUG( stk1.size = 10000; )
-    ON_DEBUG( stk1.capacity = 0; )
     ON_CANARY( *( stk1.data - 1 ) = 0xcafe; )
 
     StackPop ( &stk1 );
@@ -36,5 +35,4 @@ int main() {        // TODO: typedef ( если успею )
     ON_DEBUG( StackDump( &stk1 ); )
 
     StackDtor( &stk1 );
-    // fprintf( stderr, "%p \n", &stk1 );
 }

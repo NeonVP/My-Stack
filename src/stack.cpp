@@ -1,13 +1,19 @@
 #include "stack.h"
 
 void StackCtor( Stack_t* stk, size_t capacity ) {
+    ON_DEBUG(
+        if ( capacity > large_capacity ) {
+            stk->varInfo.err_code |= ERR_LARGE_CAPACITY;
+        }
+    )
+
     stk->data = ( int* ) calloc ( capacity ON_CANARY( + 2 ), sizeof( StackData_t ) );
     assert( stk->data != NULL );
 
     stk->capacity = capacity;
     stk->size     = 0;
 
-    #ifdef _CANARY               // canaries
+    #ifdef _CANARY
         *( stk->data ) = canary;
         *( stk->data + stk->capacity + 1 ) = canary;
 
@@ -15,16 +21,15 @@ void StackCtor( Stack_t* stk, size_t capacity ) {
     #endif
 
     StackToPoison( stk );
-
-    ON_DEBUG( StackVerify( stk ); )
 }
 
 void StackDtor( Stack_t* stk ) {
     ON_CANARY( stk->data--; )
     free( stk->data );
-    stk->data = 0;
+
+    stk->data     = NULL;
     stk->capacity = 0;
-    stk->size = 0;
+    stk->size     = 0;
 }
 
 void StackPush( Stack_t* stk, int element ) {
@@ -50,9 +55,6 @@ StackData_t StackPop( Stack_t* stk ) {
     *( stk->data + stk->size ) = poison;
 
     if ( stk->size * 4 <= stk->capacity ) {
-        // stk->capacity /= 2;
-        // stk->data = ( int* ) realloc ( stk->data, stk->capacity * sizeof( int ) );
-        // assert( stk->data != NULL );
         StackRealloc( stk, stk->capacity / 2 );
     }
 
@@ -65,30 +67,36 @@ StackData_t StackPop( Stack_t* stk ) {
     return value;
 }
 
-StackData_t* StackRealloc( Stack_t* stk, size_t capacity ) {
-    stk->capacity = capacity;
-    ON_CANARY( stk->data--; )
+void StackRealloc( Stack_t* stk, size_t capacity ) {
+    DEBUG_IN_FUNC(
+        stk->capacity = capacity;
+        ON_CANARY( stk->data--; )
 
-    stk->data = ( int* ) realloc ( stk->data, ( capacity ON_CANARY( + 2 ) ) * sizeof( StackData_t ) );
-    assert( stk->data != NULL );
+        StackData_t* new_ptr = ( int* ) realloc ( stk->data, ( capacity ON_CANARY( + 2 ) ) * sizeof( StackData_t ) );
+        if ( new_ptr == NULL ) {
+            free( stk->data );
+            assert( new_ptr != NULL );
+        }
+        stk->data = new_ptr;
 
 
-    #ifdef _CANARY
-        *( stk->data ) = canary;
-        *( stk->data + stk->capacity + 1 ) = canary;
+        #ifdef _CANARY
+            *( stk->data ) = canary;
+            *( stk->data + stk->capacity + 1 ) = canary;
 
-        stk->data++;
-    #endif
+            stk->data++;
+        #endif
 
-    StackToPoison( stk );
-
-    return stk->data;
+        StackToPoison( stk );
+    )
 }
 
 void StackToPoison( Stack_t* stk ) {
-    for ( size_t i = stk->size; i < stk->capacity; i++ ) {
-        *( stk->data + i ) = poison;
-    }
+    DEBUG_IN_FUNC(
+        for ( size_t i = stk->size; i < stk->capacity; i++ ) {
+            *( stk->data + i ) = poison;
+        }
+    )
 }
 
 #ifdef _DEBUG
@@ -102,19 +110,21 @@ long StackVerify( Stack_t* stk ) {
     }
 
     #ifdef _CANARY
-    if ( *( stk->data - 1 ) != canary || *( stk->data + stk->capacity ) != canary ) {
-        stk->varInfo.err_code |= ERR_CORRUPTED_CANARY_DATA;
-    }
+    if ( stk->data != NULL ) {
+        if ( *( stk->data - 1 ) != canary || *( stk->data + stk->capacity ) != canary ) {
+            stk->varInfo.err_code |= ERR_CORRUPTED_CANARY_DATA;
+        }
 
-    if ( stk->canary1 != canary || stk->canary2 != canary ) {
-        stk->varInfo.err_code |= ERR_CORRUPTED_CANARY_STRUCT;
+        if ( stk->canary1 != canary || stk->canary2 != canary ) {
+            stk->varInfo.err_code |= ERR_CORRUPTED_CANARY_STRUCT;
+        }
     }
     #endif
 
     if ( stk->capacity < stk->size ) {
         stk->varInfo.err_code |= ERR_SIZE_OVER_CAPACITY;
     }
-    else {
+    else if ( stk->data != NULL ) {
         for ( size_t i = 0; i < stk->size; i++ ) {
             if ( *( stk->data + i ) == poison ) {
                 stk->varInfo.err_code |= ERR_POISON_IN_FILLED_CELLS;
@@ -191,7 +201,7 @@ void StackDump( Stack_t* stk ) {
                          stk->size,
                          stk->data );
 
-        if ( stk->varInfo.err_code & ( ERR_BAD_PTR_DATA | ERR_SIZE_OVER_CAPACITY ) ) {
+        if ( stk->data == NULL || stk->size > stk->capacity ) {
             PASS;
         }
         else {
@@ -211,10 +221,6 @@ void StackDump( Stack_t* stk ) {
 
         fprintf( stderr, COLOR_CYAN "  }\n" COLOR_RESET );
     }
-}
-
-void printerr( const char* str ) {
-    fprintf( stderr, COLOR_RED "%s" COLOR_RESET, str );
 }
 
 // long StackDump( Stack_t* stk ) {
